@@ -25,7 +25,7 @@ class TestProductModels:
         assert obj.__str__() == "test_prod"
 
 
-class TestProductLineModels:
+class TestProductLineModel:
 
     def test_str_method(self, product_line_factory):
         obj = product_line_factory(sku="12345")
@@ -36,4 +36,12 @@ class TestProductLineModels:
         product_line_factory(order=1, product=obj)
         with pytest.raises(ValidationError):
             product_line_factory(order=1, product=obj).clean()
+
+
+class TestProductImageModel:
+
+    def test_str_method(self, product_image_factory):
+        obj = product_image_factory(url="test.jpg")
+        assert obj.__str__() == "test.jpg"
+
 
