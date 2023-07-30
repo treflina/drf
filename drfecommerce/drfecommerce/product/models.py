@@ -5,7 +5,7 @@ from mptt.models import MPTTModel, TreeForeignKey
 from .fields import OrderField
 
 
-class ActiveQuerySet(models.QuerySet):
+class IsActiveQuerySet(models.QuerySet):
     # ver3
     def isactive(self):
         return self.filter(is_active=True)
@@ -21,12 +21,12 @@ class ActiveQuerySet(models.QuerySet):
 
 
 class Category(MPTTModel):
-    name = models.CharField(max_length=100, unique=True)
-    slug = models.SlugField(max_length=255)
+    name = models.CharField(max_length=235, unique=True)
+    slug = models.SlugField(max_length=255, unique=True)
     parent = TreeForeignKey("self", on_delete=models.PROTECT, null=True, blank=True)
     is_active = models.BooleanField(default=True)
 
-    objects = ActiveQuerySet.as_manager()
+    objects = IsActiveQuerySet.as_manager()
 
     class MPTTMeta:
         order_insertion_by = ["name"]
@@ -35,34 +35,33 @@ class Category(MPTTModel):
         return self.name
 
 
-class Brand(models.Model):
-    name = models.CharField(max_length=100, unique=True)
-    is_active = models.BooleanField(default=True)
-
-    objects = ActiveQuerySet.as_manager()
-
-    def __str__(self):
-        return self.name
-
-
 class Product(models.Model):
-    name = models.CharField(max_length=100)
-    slug = models.SlugField(max_length=255)
+    name = models.CharField(max_length=100, unique=True)
+    slug = models.SlugField(max_length=255, unique=True)
+    pid = models.CharField(max_length=10, unique=True)
     description = models.TextField(blank=True)
     is_digital = models.BooleanField(default=False)
-    brand = models.ForeignKey(Brand, on_delete=models.CASCADE)
     category = TreeForeignKey(
-        "Category", on_delete=models.SET_NULL, null=True, blank=True
+        "Category", on_delete=models.PROTECT
     )
     is_active = models.BooleanField(default=False)
     product_type = models.ForeignKey(
         "ProductType",
         on_delete=models.PROTECT,
-        related_name="product",
+        related_name="product_type",
         null=True,
     )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        editable=False
+    )
+    attribute_value = models.ManyToManyField(
+        "AttributeValue",
+        through="ProductAttributeValue",
+        related_name="product_attr_value",
+    )
 
-    objects = ActiveQuerySet.as_manager()
+    objects = IsActiveQuerySet.as_manager()
     # objects = models.Manager()
     # objects = ActiveManager()
 
@@ -93,23 +92,27 @@ class ProductLine(models.Model):
     sku = models.CharField(max_length=10)
     stock_qty = models.IntegerField()
     product = models.ForeignKey(
-        "Product", on_delete=models.PROTECT, related_name="product_line"
+        "Product", on_delete=models.PROTECT, related_name="product_line_type"
     )
-    is_active = models.BooleanField(default=True)
-
+    is_active = models.BooleanField(default=False)
     order = OrderField(unique_for_field="product", blank=True)
-    objects = ActiveQuerySet.as_manager()
-    # weight = models.FloatField()
+    objects = IsActiveQuerySet.as_manager()
+    weight = models.FloatField()
+    product_type = models.ForeignKey(
+        "ProductType",
+        on_delete=models.PROTECT,
+        related_name="product",
+        null=True,
+    )
     attribute_value = models.ManyToManyField(
         AttributeValue,
         through="ProductLineAttributeValue",
         related_name="product_line_attribute_value",
     )
-
-    # created_at = models.DateTimeField(
-    #     auto_now_add=True,
-    #     editable=False,
-    # )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        editable=False,
+    )
 
     def clean(self):
         qs = ProductLine.objects.filter(product=self.product)
@@ -123,6 +126,62 @@ class ProductLine(models.Model):
 
     def __str__(self):
         return str(self.sku)
+
+
+class ProductImage(models.Model):
+    alternative_text = models.CharField(max_length=255)
+    url = models.ImageField(upload_to=None, default="test.jpg")
+    productline = models.ForeignKey(
+        ProductLine, on_delete=models.CASCADE, related_name="product_image"
+    )
+    order = OrderField(unique_for_field="productline", blank=True)
+
+    def clean(self):
+        qs = ProductImage.objects.filter(productline=self.productline)
+        for obj in qs:
+            if self.id != obj.id and self.order == obj.order:
+                raise ValidationError("Duplicate values.")
+
+    def save(self, *args, **kwargs):
+        self.full_clean()
+        return super(ProductImage, self).save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.productline.sku}_img"
+
+
+class ProductAttributeValue(models.Model):
+    attribute_value = models.ForeignKey(
+        AttributeValue,
+        on_delete=models.CASCADE,
+        related_name="product_value_av",
+    )
+    product = models.ForeignKey(
+        Product, on_delete=models.CASCADE, related_name="product_value_pl"
+    )
+
+    class Meta:
+        unique_together = ("attribute_value", "product")
+
+    # def clean(self):
+    #     qs = (
+    #         ProductLineAttributeValue.objects.filter(
+    #             attribute_value=self.attribute_value
+    #         )
+    #         .filter(product_line=self.product_line)
+    #         .exists()
+    #     )
+    #     print("qs", qs)
+    #     if not qs:
+    #         iqs = Attribute.objects.filter(
+    #             attribute_value__product_line_attribute_value=self.product_line
+    #         ).values_list("pk", flat=True)
+    #         if self.attribute_value.attribute.id in list(iqs):
+    #             raise ValidationError("Duplicate attribute exists.")
+
+    # def save(self, *args, **kwargs):
+    #     self.full_clean()
+    #     return super(ProductLineAttributeValue, self).save(*args, **kwargs)
 
 
 class ProductLineAttributeValue(models.Model):
@@ -159,30 +218,9 @@ class ProductLineAttributeValue(models.Model):
         return super(ProductLineAttributeValue, self).save(*args, **kwargs)
 
 
-class ProductImage(models.Model):
-    alternative_text = models.CharField(max_length=255)
-    url = models.ImageField(upload_to=None, default="test.jpg")
-    productline = models.ForeignKey(
-        ProductLine, on_delete=models.PROTECT, related_name="product_image"
-    )
-    order = OrderField(unique_for_field="productline", blank=True)
-
-    def clean(self):
-        qs = ProductImage.objects.filter(productline=self.productline)
-        for obj in qs:
-            if self.id != obj.id and self.order == obj.order:
-                raise ValidationError("Duplicate values.")
-
-    def save(self, *args, **kwargs):
-        self.full_clean()
-        return super(ProductImage, self).save(*args, **kwargs)
-
-    def __str__(self):
-        return str(self.url)
-
-
 class ProductType(models.Model):
     name = models.CharField(max_length=100)
+    parent = models.ForeignKey('self', on_delete=models.PROTECT, null=True, blank=True)
     attribute = models.ManyToManyField(
         Attribute, through="ProductTypeAttribute", related_name="product_type_attribute"
     )

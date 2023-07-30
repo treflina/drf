@@ -5,7 +5,6 @@ from django.utils.safestring import mark_safe
 from .models import (
     Attribute,
     AttributeValue,
-    Brand,
     Category,
     Product,
     ProductImage,
@@ -36,14 +35,19 @@ class ProductLineInline(EditLinkInline, admin.TabularInline):
     readonly_fields = ("edit",)
 
 
+class AttributeValueInline(admin.TabularInline):
+    model = AttributeValue.product_line_attribute_value.through
+
+
+class AttributeValueProductInline(admin.TabularInline):
+    model = AttributeValue.product_attr_value.through
+
+
 class ProductAdmin(admin.ModelAdmin):
     inlines = [
         ProductLineInline,
+        AttributeValueProductInline
     ]
-
-
-class AttributeValueInline(admin.TabularInline):
-    model = AttributeValue.product_line_attribute_value.through
 
 
 class ProductLineAdmin(admin.ModelAdmin):
@@ -64,7 +68,6 @@ class ProductTypeAdmin(admin.ModelAdmin):
 admin.site.register(ProductLine, ProductLineAdmin)
 admin.site.register(Product, ProductAdmin)
 admin.site.register(Category)
-admin.site.register(Brand)
 admin.site.register(Attribute)
 admin.site.register(AttributeValue)
 admin.site.register(ProductType, ProductTypeAdmin)
