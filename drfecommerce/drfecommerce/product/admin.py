@@ -3,11 +3,14 @@ from django.urls import reverse
 from django.utils.safestring import mark_safe
 
 from .models import (
+    Attribute,
+    AttributeValue,
+    Brand,
     Category,
     Product,
     ProductImage,
     ProductLine,
-    Brand
+    ProductType,
 )
 
 
@@ -39,9 +42,22 @@ class ProductAdmin(admin.ModelAdmin):
     ]
 
 
+class AttributeValueInline(admin.TabularInline):
+    model = AttributeValue.product_line_attribute_value.through
+
+
 class ProductLineAdmin(admin.ModelAdmin):
+    inlines = [ProductImageInline, AttributeValueInline]
+
+
+class AttributeInline(admin.TabularInline):
+    model = Attribute.product_type_attribute.through
+    # because we have built intermediary table in M2M relationship
+
+
+class ProductTypeAdmin(admin.ModelAdmin):
     inlines = [
-        ProductImageInline,
+        AttributeInline
     ]
 
 
@@ -49,3 +65,6 @@ admin.site.register(ProductLine, ProductLineAdmin)
 admin.site.register(Product, ProductAdmin)
 admin.site.register(Category)
 admin.site.register(Brand)
+admin.site.register(Attribute)
+admin.site.register(AttributeValue)
+admin.site.register(ProductType, ProductTypeAdmin)

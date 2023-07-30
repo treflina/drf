@@ -54,14 +54,15 @@ class ProductViewSet(viewsets.ViewSet):
         serializer = ProductSerializer(
             self.queryset.filter(slug=slug)
             .select_related("category", "brand")
-            .prefetch_related(Prefetch("product_line__product_image")),
+            .prefetch_related(Prefetch("product_line__product_image"))
+            .prefetch_related(Prefetch("product_line__attribute_value__attribute")),
             many=True,
         )
         data = Response(serializer.data)
         q = list(connection.queries)
         for i in q:
             sqlformatted = format(str(i["sql"]), reindent=True)
-            print(highlight(sqlformatted, SqlLexer(), TerminalFormatter()))
+            # print(highlight(sqlformatted, SqlLexer(), TerminalFormatter()))
         # obj = self.queryset.filter(slug=slug)
         # sqlformatted = format(str(obj.query), reindent=True)
         # print(highlight(sqlformatted, SqlLexer(), TerminalFormatter()))
